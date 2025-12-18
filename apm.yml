@@ -1,0 +1,6 @@
+name: spec-copilot
+version: 1.0.0
+description: Spec-driven development workflow with AI agent handoffs
+author: danielmeppiel
+dependencies:
+  apm: []
