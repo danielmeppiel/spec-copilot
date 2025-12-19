@@ -18,97 +18,69 @@ Then in VSCode Copilot Chat, select **Architect** from the agent picker dropdown
 ## The Flow
 
 ```mermaid
-flowchart TB
-    subgraph input [" "]
-        U["👤 User Request"]
-    end
-
-    subgraph strategy ["Strategy Phase"]
-        A["📋 Architect"]
-        A --> |creates| S["Strategy Spec"]
-    end
-
-    subgraph planning ["Planning Phase"]
-        P["📝 Planner"]
-        P --> |creates| I["Implementation Plan"]
-    end
-
-    subgraph execution ["Execution Phase"]
-        D["🎯 Dispatcher"]
-        
-        subgraph parallel ["Parallel Execution"]
-            E1["⚙️ Engineer"]
-            E2["⚙️ Engineer"]
-            E3["⚙️ Engineer"]
-        end
-    end
-
-    subgraph done [" "]
-        C["✅ Complete"]
-    end
-
-    U --> A
-    S --> |"⏸️ Human Gate"| P
-    I --> |"⏸️ Human Gate"| D
-    
-    D --> |dispatch| E1
-    D --> |dispatch| E2
-    D --> |dispatch| E3
-    
-    E1 --> |done| D
-    E2 --> |done| D
-    E3 --> |done| D
-    
-    D --> |"⏸️ Phase Gate"| C
-    D -.-> |iterate| P
-
-    style U fill:#e1f5fe
-    style A fill:#fff3e0
-    style P fill:#fff3e0
-    style D fill:#fff3e0
-    style E1 fill:#e8f5e9
-    style E2 fill:#e8f5e9
-    style E3 fill:#e8f5e9
-    style C fill:#c8e6c9
+flowchart LR
+    A["📋 Architect"] -->|⏸| P["📝 Planner"]
+    P -->|⏸| D["🎯 Dispatcher"]
+    D -.->|runSubagent| E1["⚙️ Engineer"]
+    D -.->|runSubagent| E2["⚙️ Engineer"]
+    D -.->|runSubagent| E3["⚙️ Engineer"]
+    E1 -.-> D
+    E2 -.-> D
+    E3 -.-> D
+    D --> V["🔍 Verifier"]
+    V -->|⏸ fix code| D
+    V -->|⏸ fix strategy| A
 ```
 
-### Flow Description
+> **⏸** = Human gate &nbsp;|&nbsp; **→** = Handoff &nbsp;|&nbsp; **⇢** = runSubagent
 
-| Phase | Agent | Action | Output |
-|-------|-------|--------|--------|
-| **Strategy** | Architect | Analyzes problem, makes design decisions | Strategy document |
-| ⏸️ | Human | Reviews and approves strategy | Go/No-go |
-| **Planning** | Planner | Breaks down into tasks with dependencies | Implementation plan |
-| ⏸️ | Human | Reviews and approves plan | Go/No-go |
-| **Execution** | Dispatcher | Coordinates parallel task dispatch | Task assignments |
-| **Execution** | Engineer ×N | Implements tasks with tests (parallel) | Code changes |
-| ⏸️ | Human | Reviews phase completion | Next phase or iterate |
+| Phase | Agent | Mechanism | Output |
+|-------|-------|-----------|--------|
+| Strategy | **Architect** | ⏸ Human reviews | `.spec/strategy.md` |
+| Planning | **Planner** | ⏸ Human reviews | `.spec/plan.md` |
+| Execution | **Dispatcher** | `runSubagent` × N | Code changes |
+| Verification | **Verifier** | ⏸ Human reviews | `.spec/verification.md` |
+| Correction | **Dispatcher** or **Architect** | Handoff from Verifier | Fixes |
+
+## Artifacts
+
+All workflow artifacts live in `.spec/` at the project root:
+
+```
+.spec/
+├── strategy.md      # Strategic decisions (Architect → Planner, Verifier)
+├── plan.md          # Task breakdown (Planner → Dispatcher)
+└── verification.md  # Gap report (Verifier → Dispatcher, Architect)
+```
+
+Agents read/write to these exact paths — no guessing.
 
 ## Agents
 
 | Agent | Role | Hands off to |
 |-------|------|--------------|
-| **Architect** | Strategic analysis and design decisions | Planner |
-| **Planner** | Task decomposition with dependencies | Dispatcher |
-| **Dispatcher** | Parallel work coordination | Engineer ×N |
-| **Engineer** | Implementation with tests | Dispatcher |
+| **Architect** | Strategic analysis, design decisions | → Planner |
+| **Planner** | Task decomposition, dependencies | → Dispatcher |
+| **Dispatcher** | Parallel work via `runSubagent` | → Verifier |
+| **Engineer** | Implementation with tests | *(invoked by Dispatcher)* |
+| **Verifier** | Strategy compliance validation | → Dispatcher or Architect |
 
-## Why Use This?
+## How It Works
 
-- **Human gates** — You approve strategy and plan before execution
-- **Parallel execution** — Multiple engineers work concurrently
-- **Iteration support** — Dispatcher can loop back to Planner
-- **Spec-driven** — Clear documentation at each stage
+1. **Architect** analyzes your problem → Produces strategy → ⏸ You approve
+2. **Planner** breaks it into tasks → Creates dependency graph → ⏸ You approve
+3. **Dispatcher** reads `engineer.agent.md`, invokes `runSubagent` for each task in parallel
+4. Engineers complete → Dispatcher collects results → hands off to **Verifier**
+5. **Verifier** checks code against strategy → ⏸ You review gaps
+6. If gaps found → loops back to **Dispatcher** (fix code) or **Architect** (fix strategy)
+
+## Why This?
+
+- **Human gates** — Approve strategy and plan before execution
+- **True parallelism** — Dispatcher uses `runSubagent` for concurrent execution
+- **Closed loop** — Verifier ensures implementation matches documented strategy
 - **Shareable** — One `apm install` for your whole team
 - **IDE-native** — Works via [VSCode agent handoffs](https://code.visualstudio.com/docs/copilot/customization/custom-agents#_handoffs)
-
-## How Handoffs Work
-
-1. Select **Architect** from agent picker → describe your problem
-2. Review strategy → Click **"Create Implementation Plan"** 
-3. Review plan → Click **"Dispatch Tasks"**
-4. Click **"Execute Task"** for each parallel task
-5. Review results → Continue or iterate
 
 ## Manual Installation
 
